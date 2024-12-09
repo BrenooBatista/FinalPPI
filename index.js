@@ -1,306 +1,212 @@
 import express from 'express';
 import session from 'express-session';
-
 import cookieParser from 'cookie-parser';
-import path from "path";
+import path from 'path';
 
 const app = express();
 
-app.use(express.static(path.join(process.cwd(), './pages/public')));
+// Configuração do servidor
 
+app.use(express.static(path.join(process.cwd(), './pages/public')));
+app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret:'M1nhaChav3S3cr3t4',
+    secret: 'M1nhaChav3S3cr3t4',
     resave: false,
     saveUninitialized: true,
     cookie: {
         secure: false,
         httpOnly: true,
-        maxAge: 1000 * 60 * 30
+        maxAge: 1000 * 60 * 30 // Sessão válida por 30 minutos
     }
 }));
 
-app.use(cookieParser());
 
-app.use(express.urlencoded({ extended: true }));
+let usuarios = [];
+let mensagens = [];
 
-app.use(express.static('./pages/public'));
 
-const porta = 3000;
-const host = '0.0.0.0';
-
-var listaProdutos = [];
-
-function cadastroProduto(req, resp) {
-    resp.send(`
-            <html>
-                <head>
-                    <title>Cadastro de Produtos</title>
-                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-                </head>
-                <body>
-                    <div class="container text-center">
-                    <h1 class="mb-3">Cadastro de Produtos</h1>
-                    <form method="POST" action="/cadastrarProduto" class="border p-3 row g-3" novalidate>
-                        <div class="col-md-4">
-                            <label for="nome" class="form-label">Produto</label>
-                            <input type="text" class="form-control" id="nome" name="nome" placeholder="Digite o nome do produto">
-                            </div>
-                            <div class="col-md-4">
-                                <label for="categoria" class="form-label">Categoria</label>
-                                <input type="text" class="form-control" id="categoria" name="categoria" placeholder="Digite a categoria do produto">
-                            
-                            </div>
-                            <div class="col-md-4">
-                            <label for="tag" class="form-label">Tag</label>
-                            <div class="input-group has-validation">
-                                <input type="number" class="form-control" id="tag" name="tag" placeholder="Digite o número da tag">
-                             </div>
-                        </div>
-                <div class="col-md-3 mx-auto" >
-                    <label for="quantidade" class="form-label">Quantidade</label>
-                    <input type="number" class="form-control" id="" name="quantidade">
-                </div>
-                <div class="col-12">
-                    <button class="btn btn-primary" type="submit">Cadastrar</button>
-                </div>
-                </form>
-                    </div>
-                </body>
-                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-            </html>
-        `);
+function verificarAutenticacao(req, res, next) {
+    if (req.session.usuarioLogado) {
+        next();
+    } else {
+        res.redirect('/login');
+    }
 }
 
-function menu(req, resp) {
-    const  dataHoraUltimoLogin = req.cookies['dataHoraUltimoLogin'];
-    if(!dataHoraUltimoLogin){
-        dataHoraUltimoLogin='';
-    }
-    resp.send(`
-            <html>
-                <head>
-                    <title>Cadastro de Produtos</title>
-                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-                </head>
-                <body>
-                <nav class="navbar navbar-expand-lg bg-body-tertiary">
-                <div class="container-fluid">
-                    <a class="navbar-brand" href="#">MENU</a>
-                    <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
-                        <ul class="navbar-nav">
-                            <a class="nav-link active" aria-current="page" href="/cadastrarProduto">Cadastrar Produtos</a>
-                             <a class="nav-link active" aria-current="page" href="/logout">Logout</a>
-                            <a class="nav-link disabled" aria-disabled="true">Seu último acesso foi feito em ${dataHoraUltimoLogin}</a>
-                    </div>
-                    </div>
-                </nav>
-                </body>
-                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-            </html>
-        `);
+// Funções para o sistema
+function loginPage(req, res) {
+    res.sendFile(path.join(process.cwd(), './pages/public/login.html'));
 }
 
-function cadastrarProduto(req, resp) {
-    const nome = req.body.nome;
-    const categoria = req.body.categoria;
-    const tag = req.body.tag;
-    const quantidade = req.body.quantidade;
-
-    const  dataHoraUltimoLogin = req.cookies['dataHoraUltimoLogin'];
-    if(!dataHoraUltimoLogin){
-        dataHoraUltimoLogin='';
+function autenticarUsuario(req, res) {
+    const { usuario, senha } = req.body;
+    if (usuario === 'admin' && senha === '123') {
+        req.session.usuarioLogado = true;
+        res.cookie('dataHoraUltimoLogin', new Date().toLocaleString(), { maxAge: 1000 * 60 * 60 * 24 * 30, httpOnly: true });
+        res.redirect('/');
+    } else {
+        res.send(`
+            <div style="text-align: center; margin-top: 20px;">
+                <p style="color: red;">Usuário ou senha inválidos</p>
+                <a href="/login" style="text-decoration: none;">Tentar novamente</a>
+            </div>
+        `);
     }
+}
 
-    if (nome && categoria && tag && quantidade > 0) {
-
-        const produto = { nome, categoria, tag, quantidade };
-
-        listaProdutos.push(produto);
-
-        resp.write(`
+function menu(req, res) {
+    const dataHoraUltimoLogin = req.cookies['dataHoraUltimoLogin'] || '';
+    res.send(`
         <html>
             <head>
-                <title>Produtos Cadastrados</title>
-                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-                <meta charset="utf-8">
+                <title>Menu do Sistema</title>
+                <style>
+                    body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+                    h1 { color: #333; }
+                    a { text-decoration: none; color: #007bff; }
+                    a:hover { text-decoration: underline; }
+                    ul { list-style: none; padding: 0; }
+                    li { margin: 10px 0; }
+                </style>
             </head>
             <body>
-            <div class="container">
-                <h1 class="mb-3">Produtos Cadastrados</h1>
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th scope="col">Nome</th>
-                            <th scope="col">Categoria</th>
-                            <th scope="col">Tag</th>
-                            <th scope="col">Quantidade</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    `);
-
-        for (var i = 0; i < listaProdutos.length; i++) {
-            resp.write(`
-            <tr>
-                <td>${listaProdutos[i].nome}</td>
-                <td>${listaProdutos[i].categoria}</td>
-                <td>${listaProdutos[i].tag}</td>
-                <td>${listaProdutos[i].quantidade}</td>
-            </tr>
-                 `);
-        }
-
-        resp.write(`
-                    </tbody>
-                </table>
-                <a class="btn btn-warning" href="/cadastrarProduto" role="button">Continuar Cadastro</a>
-                <a class="btn btn-secondary" href="/" role="button">Menu</a>
-            </div>
+                <h1>Menu</h1>
+                <p>Último acesso: ${dataHoraUltimoLogin}</p>
+                <ul>
+                    <li><a href="/cadastroUsuario">Cadastro de Usuários</a></li>
+                    <li><a href="/batepapo">Bate-papo</a></li>
+                    <li><a href="/logout">Logout</a></li>
+                </ul>
             </body>
-            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
         </html>
-     `);
-    }
-    else{
-        resp.write(`
+    `);
+}
+
+function cadastroUsuario(req, res) {
+    if (req.method === 'POST') {
+        const { nome, nascimento, apelido } = req.body;
+        if (!nome || !nascimento || !apelido) {
+            res.send(`<p>Todos os campos são obrigatórios!</p><a href="/cadastroUsuario">Voltar</a>`);
+        } else {
+            usuarios.push({ nome, nascimento, apelido });
+            res.redirect('/cadastroUsuario');
+        }
+    } else {
+        res.send(`
             <html>
                 <head>
-                    <title>Cadastro de Produtos</title>
-                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-                    <meta charset="utf-8">
+                    <title>Cadastro de Usuários</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+                        h1 { color: #333; }
+                        form { max-width: 400px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+                        label { display: block; margin-bottom: 8px; }
+                        input { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
+                        button { padding: 10px 20px; background-color: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+                        button:hover { background-color: #0056b3; }
+                        a { text-decoration: none; color: #007bff; }
+                    </style>
                 </head>
                 <body>
-                    <div class="container text-center">
-                    <h1 class="mb-3">Cadastro de Produtos</h1>
-                    <form method="POST" action="/cadastrarProduto" class="border p-3 row g-3" novalidate>
-                        <div class="col-md-4">
-                            <label for="nome" class="form-label">Produto</label>
-                            <input type="text" class="form-control" id="nome" name="nome" placeholder="Digite o nome do produto" value="${nome}">
-            `);
-            if(!nome){
-                resp.write(`
-                    <div>
-                        <span><p class="text-danger">Por favor, esse campo precisa ser preenchido com o nome do produto</p></span>
-                    </div>
-                    `);
-            }
-            resp.write(`
-                </div>
-                    <div class="col-md-4">
-                    <label for="categoria" class="form-label">Categoria</label>
-                    <input type="text" class="form-control" id="categoria" name="categoria" placeholder="Digite a categoria do produto" value="${categoria}">
-                `);
-            if(!categoria){
-                resp.write(`
-                    <div>
-                        <span><p class="text-danger">Por favor, esse campo precisa ser preenchido com a categoria do produto</p></span>
-                    </div>
-                    `);
-            }
-            resp.write(`
-                </div>
-                    <div class="col-md-4">
-                    <label for="tag" class="form-label">Tag</label>
-                    <div class="input-group has-validation">
-                    <input type="number" class="form-control" id="tag" name="tag" placeholder="Digite o número da tag" value="${tag}">
-                `);
-            if(!tag){
-                resp.write(`
-                    <div>
-                        <span><p class="text-danger">Por favor, esse campo precisa ser preenchido com o número da tag do produto</p></span>
-                    </div>
-                    `);
-            }
-            resp.write(`
-                </div>
-            </div>
-            <div class="col-md-3 mx-auto" >
-                <label for="quantidade" class="form-label">Quantidade</label>
-                <input type="number" class="form-control" id="" name="quantidade" value="${quantidade}">
-                `);
-            if(!quantidade){
-                resp.write(`
-                    <div>
-                        <span><p class="text-danger">Por favor, esse campo precisa ser preenchido com valor mínimo de 1</p></span>
-                    </div>
-                    `);
-            }
-            resp.write(`
-                </div>
-            <div class="col-12">
-                <button class="btn btn-primary" type="submit">Cadastrar</button>
-                </div>
-                </form>
-                    </div>
-                     <div>
-                        <p><span>Seu último acesso foi feito em ${dataHoraUltimoLogin}</span></p>
-                    </div>
+                    <h1>Cadastro de Usuários</h1>
+                    <form method="POST" action="/cadastroUsuario">
+                        <label>Nome:</label>
+                        <input type="text" name="nome" required><br>
+                        <label>Data de Nascimento:</label>
+                        <input type="date" name="nascimento" required><br>
+                        <label>Apelido:</label>
+                        <input type="text" name="apelido" required><br>
+                        <button type="submit">Cadastrar</button>
+                    </form>
+                    <h2>Usuários Cadastrados:</h2>
+                    <ul>
+                        ${usuarios.map(u => `<li>${u.nome} (${u.apelido})</li>`).join('')}
+                    </ul>
+                    <a href="/">Voltar ao Menu</a>
                 </body>
-                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
             </html>
-                `);    
-
-    }
-
-    resp.end();
-}
-
-function autenticarUsuario(req, resp){
-    const usuario = req.body.usuario;
-    const senha = req.body.senha;
-
-    if(usuario === 'admin' && senha === '123'){
-        req.session.usuarioLogado = true;
-        resp.cookie('dataHoraUltimoLogin', new Date().toLocaleString(), {maxAge: 1000 * 60 * 60 * 24 * 30, httpOnly: true});
-        resp.redirect('/');
-    }
-    else{
-        resp.send(`
-            
-                <html> 
-                    <head>
-                        <meta charset="utf-8">
-                        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
-                            integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-                    </head>
-                    <body> 
-                        <div class = "container w-25">
-                            <div class="alert alert-danger" role="alert">Usuário ou Senha inválidos.</div>
-                            <div>
-                            <a href="/login.html" class="btn btn-secondary">Tentar novamente</a>
-                            </div>
-                        </div>    
-                    </body>
-                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
-                        integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"crossorigin="anonymous">
-                    </script>
-                </html>
         `);
+    }
+}
+
+function batePapo(req, res) {
+    if (req.method === 'POST') {
+        const { mensagem, de, para } = req.body;
+
         
+        if (!mensagem || !de || !para) {
+            return res.send(`
+                <div style="text-align: center; margin-top: 20px;">
+                    <p style="color: red;">Todos os campos são obrigatórios!</p>
+                    <a href="/batepapo" style="text-decoration: none;">Voltar</a>
+                </div>
+            `);
+        }
+
+        mensagens.push({ de, para, mensagem });
+        res.redirect('/batepapo');
+    } else {
+        
+        const listaUsuarios = usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`).join('');
+
+        res.send(`
+            <html>
+                <head>
+                    <title>Bate-papo</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+                        h1 { color: #333; }
+                        ul { list-style: none; padding: 0; }
+                        li { margin: 10px 0; background: #fff; padding: 10px; border-radius: 4px; box-shadow: 0 0 5px rgba(0, 0, 0, 0.1); }
+                        form { display: flex; margin-top: 20px; flex-wrap: wrap; }
+                        input, select { flex: 1; padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+                        select { max-width: 200px; }
+                        button { padding: 10px 20px; background-color: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+                        button:hover { background-color: #0056b3; }
+                        a { text-decoration: none; color: #007bff; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Bate-papo</h1>
+                    <ul>
+                        ${mensagens.map(m => `<li><strong>${m.de}</strong> para <strong>${m.para}</strong>: ${m.mensagem}</li>`).join('')}
+                    </ul>
+                    <form method="POST" action="/batepapo">
+                        <label>De:</label>
+                        <select name="de" required>
+                            <option value="">Selecione o remetente</option>
+                            ${listaUsuarios}
+                        </select><br>
+                        <label>Para:</label>
+                        <select name="para" required>
+                            <option value="">Selecione o destinatário</option>
+                            ${listaUsuarios}
+                        </select><br>
+                        <label>Mensagem:</label>
+                        <input type="text" name="mensagem" required><br>
+                        <button type="submit">Enviar</button>
+                    </form>
+                    <a href="/">Voltar ao Menu</a>
+                </body>
+            </html>
+        `);
     }
 }
 
-function verificarAutenticacao(req, resp, next){
-    if(req.session.usuarioLogado){
-        next();
-    }
-    else
-    {
-        resp.redirect('/login.html');
-    }
-}
-
-app.get('/login' , (req, resp) =>{
-    resp.redirect('/login.html');
-});
-app.get('/logout' , (req, resp) =>{
+app.get('/login', loginPage);
+app.post('/login', autenticarUsuario);
+app.get('/logout', (req, res) => {
     req.session.destroy();
-    resp.redirect('/login.html');
+    res.redirect('/login');
 });
-app.post('/login' ,autenticarUsuario);
-app.get('/',verificarAutenticacao, menu);
-app.get('/cadastrarProduto',verificarAutenticacao, cadastroProduto);
-app.post('/cadastrarProduto',verificarAutenticacao, cadastrarProduto);
-app.listen(porta, host, () => {
-    console.log(`Servidor iniciado e em execução no endereço http://${host}:${porta}`);
+app.get('/', verificarAutenticacao, menu);
+app.get('/cadastroUsuario', verificarAutenticacao, cadastroUsuario);
+app.post('/cadastroUsuario', verificarAutenticacao, cadastroUsuario);
+app.get('/batepapo', verificarAutenticacao, batePapo);
+app.post('/batepapo', verificarAutenticacao, batePapo);
+
+const porta = 3000;
+app.listen(porta, () => {
+    console.log(`Servidor iniciado e em execução na porta ${porta}`);
 });
